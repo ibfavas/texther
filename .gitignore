@@ -1,0 +1,27 @@
+# Flutter/Dart/Pub related
+.dart_tool/
+.packages
+.pub-cache/
+build/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/.symlinks/
+ios/Pods/
+macos/Pods/
+macos/.symlinks/
+
+# IDE related
+.vscode/
+.idea/
+
+# System
+.DS_Store
+Thumbs.db
+
+# Firebase
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+
+# Environment config (if any)
+.env
+.env.*
