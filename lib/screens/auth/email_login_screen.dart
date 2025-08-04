@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/auth_service.dart';
 import '../home_screen.dart';
 import 'email_signup_screen.dart';
+import 'forgot_password_screen.dart';
 
 class EmailLoginScreen extends StatefulWidget {
   const EmailLoginScreen({super.key});
@@ -157,7 +158,10 @@ class _EmailLoginScreenState extends State<EmailLoginScreen> {
                   alignment: Alignment.centerRight,
                   child: TextButton(
                     onPressed: () {
-                      // TODO: Implement Forgot Password
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
+                      );
                     },
                     child: const Text("Forget Password ?", style: TextStyle(color: Colors.white70)),
                   ),

@@ -1,7 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 // import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -71,4 +70,24 @@ class AuthService {
 //     }
 //   }
 
+  Future<void> sendPasswordResetEmail(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+      print('Password reset email sent (or processing) to $email');
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found' || e.code == 'invalid-email') {
+        print('Firebase Auth Error for password reset: ${e.code}');
+        throw FirebaseAuthException(
+          code: 'generic-password-reset-message',
+          message: 'If an account exists for that email, a password reset link has been sent.',
+        );
+      } else {
+        print('Error sending password reset email: ${e.code} - ${e.message}');
+        throw e;
+      }
+    } catch (e) {
+      print('Unexpected error in sendPasswordResetEmail: $e');
+      rethrow;
+    }
+  }
 }
