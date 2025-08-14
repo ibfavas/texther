@@ -11,14 +11,18 @@ class AuthChoiceScreen extends StatelessWidget {
   final AuthService _authService = AuthService();
 
   Future<void> _handleSocialLogin(
-      BuildContext context, Future<User?> Function() signInMethod) async {
+      BuildContext context, Future<UserCredential?> Function() signInMethod) async {
     try {
-      final user = await signInMethod();
+      final userCredential = await signInMethod();
+      final user = userCredential?.user;
+
       if (user != null) {
         final prefs = await SharedPreferences.getInstance();
+
+        final isNewUser = userCredential!.additionalUserInfo?.isNewUser ?? false;
         final seenOnboarding = prefs.getBool('seen_onboarding') ?? false;
 
-        if (!seenOnboarding) {
+        if (isNewUser || !seenOnboarding) {
           Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(builder: (_) => OnboardingStep1()),
@@ -34,8 +38,10 @@ class AuthChoiceScreen extends StatelessWidget {
       } else {
         _showError(context, "Login failed. Please try again.");
       }
+    } on FirebaseAuthException catch (e) {
+      _showError(context, e.message ?? "An authentication error occurred.");
     } catch (e) {
-      _showError(context, "An error occurred: ${e.toString()}");
+      _showError(context, "An unexpected error occurred: ${e.toString()}");
     }
   }
 
@@ -164,9 +170,6 @@ class AuthChoiceScreen extends StatelessWidget {
                           ),
                         );
                       },
-                      // onPressed: () async {
-                      //   await _handleSocialLogin(context, _authService.signInWithFacebook);
-                      // },
                       icon: const Icon(Icons.facebook, size: 20),
                       label: const Text("FACEBOOK",
                           style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
