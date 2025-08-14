@@ -25,3 +25,6 @@ ios/Runner/GoogleService-Info.plist
 # Environment config (if any)
 .env
 .env.*
+openai_api_key.txt
+openai_api_key.json
+lib/services/openai_api_key.dart
