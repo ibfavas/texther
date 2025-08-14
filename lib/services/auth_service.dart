@@ -5,7 +5,6 @@ import 'package:google_sign_in/google_sign_in.dart';
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // Stream to listen to auth state changes
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
   // Get current user
@@ -22,15 +21,14 @@ class AuthService {
         email: email, password: password);
   }
 
-  // Sign out from all providers
+  // Sign out
   Future<void> signOut() async {
     await _auth.signOut();
     await GoogleSignIn().signOut();
     // await FacebookAuth.instance.logOut();
   }
 
-  // auth_service.dart
-
+  //Sign in with Google
   Future<User?> signInWithGoogle() async {
     try {
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
@@ -52,6 +50,7 @@ class AuthService {
     }
   }
 
+  //Sign in with facebook
 //   Future<User?> signInWithFacebook() async {
 //     try {
 //       final LoginResult result = await FacebookAuth.instance.login();
@@ -70,6 +69,7 @@ class AuthService {
 //     }
 //   }
 
+  //Password Reset
   Future<void> sendPasswordResetEmail(String email) async {
     try {
       await _auth.sendPasswordResetEmail(email: email);
