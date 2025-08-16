@@ -108,6 +108,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
       "maxMessages": plan['messages'],
       "messagesUsed": 0,
       "active": true,
+      "email": user!.email,
     });
     setState(() {
       _activePlan = selectedPlan;
