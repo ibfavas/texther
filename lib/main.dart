@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'screens/splash_screen.dart'; // use splash as entry point
+import 'screens/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,14 +17,14 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         brightness: Brightness.dark,
         scaffoldBackgroundColor: Colors.black,
-        fontFamily: 'Urbanist', // sets default for all text
+        fontFamily: 'Urbanist',
         textTheme: ThemeData.dark().textTheme.copyWith(
           bodyLarge: TextStyle(fontFamily: 'Urbanist'),
           bodyMedium: TextStyle(fontFamily: 'Urbanist'),
           labelLarge: TextStyle(fontFamily: 'Urbanist'),
         ),
       ),
-      home: SplashScreen(), // entry point
+      home: SplashScreen(),
     );
   }
 }

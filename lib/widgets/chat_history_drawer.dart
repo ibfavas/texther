@@ -81,9 +81,68 @@ class ChatHistoryDrawer extends StatelessWidget {
                 ],
               ),
             ),
+            _buildSubscriptionInfo(context),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildSubscriptionInfo(BuildContext context) {
+    if (user == null) {
+      return Container();
+    }
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('subscriptions')
+          .doc(user!.uid)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return const Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Text(
+              "No Active Plan",
+              style: TextStyle(color: Colors.grey, fontSize: 14),
+            ),
+          );
+        }
+        final data = snapshot.data!.data() as Map<String, dynamic>;
+        final int messagesUsed = data['messagesUsed'] ?? 0;
+        final int maxMessages = data['maxMessages'] ?? 0;
+        final Timestamp endDateTimestamp = data['endDate'];
+        final DateTime endDate = endDateTimestamp.toDate();
+        final int remainingDays = endDate.difference(DateTime.now()).inDays + 1;
+
+        return Container(
+          width: double.infinity,
+          margin: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.grey[850],
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Active Plan: ${data['plan']}",
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "Messages: ${messagesUsed} / ${maxMessages}",
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                "Days Remaining: ${remainingDays > 0 ? remainingDays : 0}",
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

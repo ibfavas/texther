@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -5,7 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'animated_typing_indicator.dart';
 
-class ChatScreenContent extends StatelessWidget {
+class ChatScreenContent extends StatefulWidget {
   final User? user;
   final String userName;
   final String? currentChatId;
@@ -34,64 +35,111 @@ class ChatScreenContent extends StatelessWidget {
   });
 
   @override
+  State<ChatScreenContent> createState() => _ChatScreenContentState();
+}
+
+class _ChatScreenContentState extends State<ChatScreenContent> {
+  List<Map<String, dynamic>> _messages = [];
+  StreamSubscription<QuerySnapshot>? _subscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _listenToMessages();
+  }
+
+  @override
+  void didUpdateWidget(ChatScreenContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currentChatId != widget.currentChatId ||
+        oldWidget.user?.uid != widget.user?.uid) {
+      _subscription?.cancel();
+      _messages = [];
+      _listenToMessages();
+    }
+  }
+
+  void _listenToMessages() {
+    if (widget.user == null || widget.currentChatId == null) return;
+
+    _subscription = FirebaseFirestore.instance
+        .collection('users')
+        .doc(widget.user!.uid)
+        .collection('chats')
+        .doc(widget.currentChatId)
+        .collection('messages')
+        .orderBy('timestamp')
+        .snapshots()
+        .listen((snapshot) {
+      setState(() {
+        _messages = snapshot.docs
+            .map((doc) => doc.data() as Map<String, dynamic>)
+            .toList();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Expanded(
-          child: currentChatId == null
-              ? const Center(child: CircularProgressIndicator())
-              : StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('users')
-                .doc(user?.uid)
-                .collection('chats')
-                .doc(currentChatId)
-                .collection('messages')
-                .orderBy('timestamp')
-                .snapshots(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator(color: Colors.white));
-              }
-              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                return Center(
+    return Scaffold(
+      resizeToAvoidBottomInset: false,
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: _messages.isEmpty
+                  ? Center(
+                child: AnimatedOpacity(
+                  opacity: widget.userName.isNotEmpty ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 600),
+                  curve: Curves.easeInOut,
                   child: Text(
-                    "Hello, $userName 👋",
+                    "Hello, ${widget.userName} 👋",
                     style: const TextStyle(
-                        fontSize: 26,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600),
+                      fontSize: 24,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                );
-              }
-              final messages = snapshot.data!.docs;
-              return ListView.builder(
-                controller: scrollController,
+                ),
+              )
+                  : ListView.builder(
+                controller: widget.scrollController,
                 padding: const EdgeInsets.all(10),
-                itemCount: messages.length,
+                itemCount: _messages.length,
                 itemBuilder: (context, index) {
-                  final document = messages[index];
-                  Map<String, dynamic> data =
-                  document.data()! as Map<String, dynamic>;
-                  bool isUser = data['senderId'] == user?.uid;
+                  final data = _messages[index];
+                  bool isUser = data['senderId'] == widget.user?.uid;
                   return _ChatMessage(data: data, isUser: isUser);
                 },
-              );
-            },
-          ),
+              ),
+            ),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOut,
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+              ),
+              child: SafeArea(
+                child: _buildMinimalistInputArea(context),
+              ),
+            ),
+          ],
         ),
-        _buildMinimalistInputArea(context),
-      ],
+      ),
     );
   }
 
   Widget _buildMinimalistInputArea(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.only(
-        left: 8.0,
-        right: 8.0,
-        bottom: 8.0,
-      ),
+      padding: const EdgeInsets.only(left: 8.0, right: 8.0, bottom: 8.0),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.grey[900],
@@ -103,34 +151,34 @@ class ChatScreenContent extends StatelessWidget {
           children: [
             Expanded(
               child: TextField(
-                controller: textController,
-                focusNode: textFocusNode,
+                controller: widget.textController,
+                focusNode: widget.textFocusNode,
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
                   hintText: 'Type a message...',
                   hintStyle: TextStyle(color: Colors.grey),
                   border: InputBorder.none,
                 ),
-                onSubmitted: onSendMessage,
+                onSubmitted: widget.onSendMessage,
               ),
             ),
             TextButton(
-              onPressed: () => onModeChanged('Reply'),
+              onPressed: () => widget.onModeChanged('Reply'),
               child: Text(
                 'Reply',
                 style: TextStyle(
-                  color: selectedMode == 'Reply'
+                  color: widget.selectedMode == 'Reply'
                       ? Colors.blueAccent
                       : Colors.grey[400],
                 ),
               ),
             ),
             TextButton(
-              onPressed: () => onModeChanged('Fix It'),
+              onPressed: () => widget.onModeChanged('Fix It'),
               child: Text(
                 'Fix It',
                 style: TextStyle(
-                  color: selectedMode == 'Fix It'
+                  color: widget.selectedMode == 'Fix It'
                       ? Colors.blueAccent
                       : Colors.grey[400],
                 ),
@@ -139,10 +187,10 @@ class ChatScreenContent extends StatelessWidget {
             IconButton(
               icon: const Icon(Icons.send, color: Colors.blueAccent),
               onPressed: () async {
-                if (textController.text.trim().isEmpty) return;
-                final tone = await onShowToneSelection(context);
+                if (widget.textController.text.trim().isEmpty) return;
+                final tone = await widget.onShowToneSelection(context);
                 if (tone != null) {
-                  onSendWithGpt(tone);
+                  widget.onSendWithGpt(tone);
                 }
               },
             ),
@@ -173,24 +221,28 @@ class _ChatMessage extends StatelessWidget {
       ),
     );
 
-    final bool isGenerating = data.containsKey('isGenerating') && data['isGenerating'];
+    final bool isGenerating =
+        data.containsKey('isGenerating') && data['isGenerating'];
 
     final messageContent = isGenerating
         ? const AnimatedTypingIndicator()
         : Text(
-      data['text'],
+      data['text'] ?? '',
       style: const TextStyle(color: Colors.white),
     );
 
     final messageContainer = GestureDetector(
-      onLongPress: isGenerating ? null : () {
+      onLongPress: isGenerating
+          ? null
+          : () {
         Clipboard.setData(ClipboardData(text: data['text']));
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Message copied to clipboard')),
         );
       },
       child: Container(
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.7),
+        constraints:
+        BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.7),
         margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
@@ -204,16 +256,15 @@ class _ChatMessage extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2.0),
       child: Row(
-        mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment:
+        isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isUser) ...[
             avatar,
             const SizedBox(width: 8),
           ],
-          Flexible(
-            child: messageContainer,
-          ),
+          Flexible(child: messageContainer),
           if (isUser) ...[
             const SizedBox(width: 8),
             avatar,
