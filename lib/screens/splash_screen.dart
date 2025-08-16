@@ -1,6 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import 'home_screen.dart';
 import 'onboarding/welcome_message.dart';
 import 'auth/auth_choice_screen.dart';
@@ -19,31 +21,48 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkUserStatus() async {
-    await Future.delayed(Duration(seconds: 2));
+    await Future.delayed(const Duration(seconds: 2));
+
+    if (!mounted) return;
+
     final prefs = await SharedPreferences.getInstance();
     final bool seenCarousel = prefs.getBool('seen_carousel_onboarding') ?? false;
     final bool seenOnboarding = prefs.getBool('seen_onboarding') ?? false;
     final user = FirebaseAuth.instance.currentUser;
 
+    // 🔥 Preload user data if logged in
+    if (user != null) {
+      try {
+        final snapshot = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+
+        if (snapshot.exists) {
+          final data = snapshot.data() ?? {};
+          await prefs.setString('userName', data['name'] ?? '');
+          await prefs.setString('userPlan', data['plan'] ?? 'free');
+        }
+      } catch (e) {
+        debugPrint("⚠️ Error preloading user data: $e");
+      }
+    }
+
     if (!mounted) return;
 
     if (!seenCarousel) {
-      // First time ever opening the app
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => WelcomeMessageScreen()),
       );
     } else if (user == null) {
-      // Seen welcome carousel, but not logged in
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => AuthChoiceScreen()),
       );
     } else if (!seenOnboarding) {
-      // Logged in but first time onboarding
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => OnboardingStep1()),
       );
     } else {
-      // Logged in and seen onboarding
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => HomeScreen()),
       );

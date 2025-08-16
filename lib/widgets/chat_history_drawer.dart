@@ -42,7 +42,10 @@ class ChatHistoryDrawer extends StatelessWidget {
             ListTile(
               leading: const Icon(Icons.add, color: Colors.white),
               title: const Text('New Chat', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              onTap: onNewChat,
+              onTap: () {
+                onNewChat();
+                Navigator.pop(context);
+              },
             ),
             const Divider(color: Colors.grey),
             Expanded(

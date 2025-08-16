@@ -1,9 +1,16 @@
 import 'dart:convert';
+import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:http/http.dart' as http;
 
 class GptService {
-  final String apiKey = "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"; // Keep this secure
 
+  Future<String?> getOpenAIKey() async {
+    final remoteConfig = FirebaseRemoteConfig.instance;
+    await remoteConfig.fetchAndActivate();
+    return remoteConfig.getString('openai_api_key');
+  }
+
+  /// Generate GPT-based message
   Future<String> generateMessage({
     required String mode,
     required String tone,
@@ -13,10 +20,15 @@ class GptService {
 
     if (mode == "Reply") {
       prompt =
-      "Craft a response to the message: \"$userMessage\". Your reply should sound completely natural and human, reflecting a $tone tone.";
+      "Craft a response to the message: \"$userMessage\". Your reply should sound completely natural and human (you should never sound like an AI), reflecting a $tone tone.";
     } else {
       prompt =
-      "Refine this message for grammar and clarity: \"$userMessage\". The goal is to make it sound perfectly natural and human, using a $tone tone.";
+      "Refine this message for grammar and clarity: \"$userMessage\". The goal is to make it sound perfectly natural and human (you should never sound like an AI), using a $tone tone.";
+    }
+
+    final apiKey = await getOpenAIKey();
+    if (apiKey == null || apiKey.isEmpty) {
+      throw Exception("OpenAI API key not found.");
     }
 
     final response = await http.post(
@@ -31,7 +43,7 @@ class GptService {
           {"role": "system", "content": "You are a helpful, friendly chat assistant."},
           {"role": "user", "content": prompt}
         ],
-        "temperature": 0.8
+        "temperature": 0.8,
       }),
     );
 

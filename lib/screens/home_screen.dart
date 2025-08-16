@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -33,8 +34,8 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoadingName = true;
   String _subscribeButtonText = '✨ Subscribe';
 
-  late StreamSubscription<QuerySnapshot> _chatHistorySubscription;
-  late StreamSubscription<DocumentSnapshot> _subscriptionStatusSubscription;
+  StreamSubscription<QuerySnapshot>? _chatHistorySubscription;
+  StreamSubscription<DocumentSnapshot>? _subscriptionStatusSubscription;
   List<DocumentSnapshot> _chatHistoryDocs = [];
 
   @override
@@ -42,9 +43,21 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _textFocusNode = FocusNode();
     _startNewChat();
+    _loadCachedUserName();
     _loadUserAndName();
     _listenToChatHistory();
     _listenToSubscriptionStatus();
+  }
+
+  Future<void> _loadCachedUserName() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cachedName = prefs.getString('userName');
+    if (cachedName != null && mounted) {
+      setState(() {
+        _userName = cachedName;
+        _isLoadingName = false;
+      });
+    }
   }
 
   void _listenToChatHistory() {
@@ -74,7 +87,8 @@ class _HomeScreenState extends State<HomeScreen> {
           .listen((snapshot) {
         if (snapshot.exists && snapshot.data() != null) {
           final data = snapshot.data()!;
-          if (data['active'] == true && data['endDate'].toDate().isAfter(DateTime.now())) {
+          if (data['active'] == true &&
+              data['endDate'].toDate().isAfter(DateTime.now())) {
             setState(() {
               _subscribeButtonText = data['plan'];
             });
@@ -95,47 +109,38 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadUserAndName() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
+      String? newName;
 
       if (user.displayName != null && user.displayName!.isNotEmpty) {
-        final newName = user.displayName!;
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('userName', newName);
+        newName = user.displayName!;
+      } else {
+        final userDoc =
+        await _firestore.collection('users').doc(user.uid).get();
+        if (userDoc.exists && userDoc.data()?['name'] != null) {
+          newName = userDoc.data()?['name'];
+        } else if (user.email != null && user.email!.isNotEmpty) {
+          newName = user.email!.split('@')[0];
+        } else {
+          newName = 'User';
+        }
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('userName', newName!);
+
+      if (mounted) {
         setState(() {
           _userName = newName;
           _isLoadingName = false;
         });
-      } else {
-
-        final userDoc = await _firestore.collection('users').doc(user.uid).get();
-        if (userDoc.exists && userDoc.data()?['name'] != null) {
-          final newName = userDoc.data()?['name'];
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('userName', newName);
-          setState(() {
-            _userName = newName;
-            _isLoadingName = false;
-          });
-        } else {
-
-          if (user.email != null && user.email!.isNotEmpty) {
-            final emailName = user.email!.split('@')[0];
-            setState(() {
-              _userName = emailName;
-              _isLoadingName = false;
-            });
-          } else {
-            setState(() {
-              _userName = 'User';
-              _isLoadingName = false;
-            });
-          }
-        }
       }
     } else {
-      setState(() {
-        _isLoadingName = false;
-        _userName = 'User';
-      });
+      if (mounted) {
+        setState(() {
+          _isLoadingName = false;
+          _userName = 'User';
+        });
+      }
     }
   }
 
@@ -144,8 +149,8 @@ class _HomeScreenState extends State<HomeScreen> {
     _textFocusNode.dispose();
     _textController.dispose();
     _scrollController.dispose();
-    _chatHistorySubscription.cancel();
-    _subscriptionStatusSubscription.cancel();
+    _chatHistorySubscription?.cancel();
+    _subscriptionStatusSubscription?.cancel();
     super.dispose();
   }
 
@@ -192,7 +197,8 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (BuildContext context) {
         return Dialog(
           backgroundColor: Colors.black87,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
@@ -200,7 +206,10 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 const Text(
                   "SELECT A TONE:",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white),
                 ),
                 const SizedBox(height: 15),
                 Wrap(
@@ -226,10 +235,13 @@ class _HomeScreenState extends State<HomeScreen> {
       onPressed: () => Navigator.pop(context, text),
       style: ElevatedButton.styleFrom(
         backgroundColor: color,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape:
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       ),
-      child: Text(text, style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 14)),
+      child: Text(text,
+          style: const TextStyle(
+              color: Colors.black, fontWeight: FontWeight.bold, fontSize: 14)),
     );
   }
 
@@ -240,8 +252,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    final subDoc = await _firestore.collection('subscriptions').doc(user.uid).get();
-    if (!subDoc.exists || subDoc.data()?['active'] != true || subDoc.data()?['endDate'].toDate().isBefore(DateTime.now())) {
+    final subDoc =
+    await _firestore.collection('subscriptions').doc(user.uid).get();
+    if (!subDoc.exists ||
+        subDoc.data()?['active'] != true ||
+        subDoc.data()?['endDate'].toDate().isBefore(DateTime.now())) {
       _showSubscriptionPrompt();
       return;
     }
@@ -314,32 +329,41 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _showSubscriptionPrompt() {
-    FocusScope.of(context).unfocus();
+  Future<void> _showSubscriptionPrompt() async {
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text(
-          'You have reached your message limit. Please subscribe to a plan to continue.',
-        ),
-        action: SnackBarAction(
-          label: 'Subscribe',
-          onPressed: _openSubscriptionPage,
-        ),
+    await Future.delayed(const Duration(milliseconds: 180));
+
+    final snackBar = SnackBar(
+      content: const Text(
+        'You have reached your message limit. Please subscribe to continue.',
+        style: TextStyle(color: Colors.black),
       ),
+      backgroundColor: Colors.white,
+      behavior: SnackBarBehavior.floating,
+      action: SnackBarAction(
+        label: 'Subscribe',
+        textColor: Colors.blueAccent,
+        onPressed: () {
+          _openSubscriptionPage();
+        },
+      ),
+      duration: const Duration(seconds: 4),
     );
+
+    ScaffoldMessenger.of(context).showSnackBar(snackBar);
   }
 
-
-
   void _scrollToEnd() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    SchedulerBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
+        try {
+          final max = _scrollController.position.maxScrollExtent;
+          _scrollController.animateTo(
+            max,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        } catch (_) {}
       }
     });
   }
@@ -356,11 +380,13 @@ class _HomeScreenState extends State<HomeScreen> {
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+              child:
+              const Text('Cancel', style: TextStyle(color: Colors.white70)),
             ),
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Sign Out', style: TextStyle(color: Colors.redAccent)),
+              child:
+              const Text('Sign Out', style: TextStyle(color: Colors.redAccent)),
             ),
           ],
         );
@@ -419,18 +445,18 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openSubscriptionPage() {
+    // ensure keyboard is gone
     _textFocusNode.unfocus();
     Navigator.of(context).push(
       MaterialPageRoute(builder: (context) => const SubscriptionPage()),
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     return Scaffold(
-      resizeToAvoidBottomInset: false,
+      resizeToAvoidBottomInset: true,
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
@@ -444,21 +470,21 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           ),
         ),
-
         title: Center(
           child: TextButton(
             style: TextButton.styleFrom(
               backgroundColor: Colors.grey[850],
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              padding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
             ),
             onPressed: _openSubscriptionPage,
-            child: Text(_subscribeButtonText, style: const TextStyle(color: Colors.white)),
+            child:
+            Text(_subscribeButtonText, style: const TextStyle(color: Colors.white)),
           ),
         ),
-
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),

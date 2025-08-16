@@ -46,16 +46,29 @@ class _ChatScreenContentState extends State<ChatScreenContent> {
   void initState() {
     super.initState();
     _listenToMessages();
+    widget.textFocusNode.addListener(_onFocusChange);
   }
 
   @override
   void didUpdateWidget(ChatScreenContent oldWidget) {
     super.didUpdateWidget(oldWidget);
+
     if (oldWidget.currentChatId != widget.currentChatId ||
         oldWidget.user?.uid != widget.user?.uid) {
       _subscription?.cancel();
       _messages = [];
       _listenToMessages();
+    }
+
+    if (oldWidget.textFocusNode != widget.textFocusNode) {
+      oldWidget.textFocusNode.removeListener(_onFocusChange);
+      widget.textFocusNode.addListener(_onFocusChange);
+    }
+  }
+
+  void _onFocusChange() {
+    if (widget.textFocusNode.hasFocus) {
+      Future.delayed(const Duration(milliseconds: 200), _scrollToEnd);
     }
   }
 
@@ -72,79 +85,93 @@ class _ChatScreenContentState extends State<ChatScreenContent> {
         .snapshots()
         .listen((snapshot) {
       setState(() {
-        _messages = snapshot.docs
-            .map((doc) => doc.data() as Map<String, dynamic>)
-            .toList();
+        _messages = snapshot.docs.map((d) => d.data()).toList();
       });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToEnd());
+    }, onError: (err) {
+      debugPrint('Messages listen error: $err');
     });
   }
 
   @override
   void dispose() {
     _subscription?.cancel();
+    widget.textFocusNode.removeListener(_onFocusChange);
     super.dispose();
+  }
+
+  void _scrollToEnd() {
+    if (widget.scrollController.hasClients) {
+      widget.scrollController.animateTo(
+        widget.scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      resizeToAvoidBottomInset: false,
-      backgroundColor: Colors.black,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: _messages.isEmpty
-                  ? Center(
-                child: AnimatedOpacity(
-                  opacity: widget.userName.isNotEmpty ? 1.0 : 0.0,
-                  duration: const Duration(milliseconds: 600),
-                  curve: Curves.easeInOut,
-                  child: Text(
-                    "Hello, ${widget.userName} 👋",
-                    style: const TextStyle(
-                      fontSize: 24,
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
+    return SafeArea(
+      child: Column(
+        children: [
+          // Messages area
+          Expanded(
+            child: _messages.isEmpty
+                ? Center(
+              child: AnimatedOpacity(
+                opacity: widget.userName.isNotEmpty ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 600),
+                curve: Curves.easeInOut,
+                child: Text(
+                  "Hello, ${widget.userName} 👋",
+                  style: const TextStyle(
+                    fontSize: 24,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-              )
-                  : ListView.builder(
-                controller: widget.scrollController,
-                padding: const EdgeInsets.all(10),
-                itemCount: _messages.length,
-                itemBuilder: (context, index) {
-                  final data = _messages[index];
-                  bool isUser = data['senderId'] == widget.user?.uid;
-                  return _ChatMessage(data: data, isUser: isUser);
-                },
               ),
+            )
+                : ListView.builder(
+              controller: widget.scrollController,
+              padding: const EdgeInsets.all(10),
+              keyboardDismissBehavior:
+              ScrollViewKeyboardDismissBehavior.onDrag,
+              itemCount: _messages.length,
+              itemBuilder: (context, index) {
+                final data = _messages[index];
+                bool isUser = data['senderId'] == widget.user?.uid;
+                return _ChatMessage(data: data, isUser: isUser);
+              },
             ),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              curve: Curves.easeOut,
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom,
-              ),
-              child: SafeArea(
-                child: _buildMinimalistInputArea(context),
-              ),
+          ),
+
+          AnimatedPadding(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom,
             ),
-          ],
-        ),
+            child: SafeArea(
+              top: false,
+              child: _buildMinimalistInputArea(context),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildMinimalistInputArea(BuildContext context) {
     return Container(
+      color: Colors.transparent,
       padding: const EdgeInsets.only(left: 8.0, right: 8.0, bottom: 8.0),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.grey[900],
           borderRadius: BorderRadius.circular(25),
-          border: Border.all(color: Colors.grey[800]!),
+          border: Border.all(color: Colors.grey[900]!),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         child: Row(
@@ -159,7 +186,8 @@ class _ChatScreenContentState extends State<ChatScreenContent> {
                   hintStyle: TextStyle(color: Colors.grey),
                   border: InputBorder.none,
                 ),
-                onSubmitted: widget.onSendMessage,
+                textInputAction: TextInputAction.send,
+                onSubmitted: (value) => widget.onSendMessage(value),
               ),
             ),
             TextButton(
@@ -222,7 +250,7 @@ class _ChatMessage extends StatelessWidget {
     );
 
     final bool isGenerating =
-        data.containsKey('isGenerating') && data['isGenerating'];
+        data.containsKey('isGenerating') && data['isGenerating'] == true;
 
     final messageContent = isGenerating
         ? const AnimatedTypingIndicator()

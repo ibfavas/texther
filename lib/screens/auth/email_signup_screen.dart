@@ -114,7 +114,7 @@ class _EmailSignupScreenState extends State<EmailSignupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
+    final _ = Theme.of(context).textTheme;
 
     return Scaffold(
       backgroundColor: Colors.black,
